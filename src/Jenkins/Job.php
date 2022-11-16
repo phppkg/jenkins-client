@@ -120,12 +120,10 @@ class Job
 
     /**
      * @return string
-     *
-     * @throws RuntimeException
      */
     public function retrieveXmlConfigAsString(): string
     {
-        return $this->jenkins->retrieveXmlConfigAsString($this->getName());
+        return $this->jenkins->getJobConfig($this->getName());
     }
 
     /**
