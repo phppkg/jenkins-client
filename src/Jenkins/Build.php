@@ -12,6 +12,12 @@ namespace PhpPkg\JenkinsClient\Jenkins;
 use PhpPkg\JenkinsClient\Jenkins;
 use stdClass;
 
+/**
+ * class Build
+ *
+ * @author inhere
+ * @date 2022/11/16
+ */
 class Build
 {
     /**
@@ -85,19 +91,19 @@ class Build
     /**
      * @return int
      */
-    public function getTimestamp(): float|int
+    public function getTimestamp(): int
     {
-        //division par 1000 => pas de millisecondes
-        return $this->build->timestamp / 1000;
+        //division par 1000 => pas de milliseconds
+        return (int)($this->build->timestamp / 1000);
     }
 
     /**
      * @return int
      */
-    public function getDuration(): float|int
+    public function getDuration(): int
     {
-        //division par 1000 => pas de millisecondes
-        return $this->build->duration / 1000;
+        //division par 1000 => pas de milliseconds
+        return (int)($this->build->duration / 1000);
     }
 
     /**
@@ -122,22 +128,22 @@ class Build
     }
 
     /**
-     * @return float|null
+     * @return int
      */
-    public function getEstimatedDuration(): float|int|null
+    public function getEstimatedDuration(): int
     {
         //since version 1.461 estimatedDuration is displayed in jenkins's api
         //we can use it witch is more accurate than calcule ourselves
         //but older versions need to continue to work, so in case of estimated
         //duration is not found we fallback to calcule it.
         if (property_exists($this->build, 'estimatedDuration')) {
-            return $this->build->estimatedDuration / 1000;
+            return (int)($this->build->estimatedDuration / 1000);
         }
 
-        $duration = null;
+        $duration = 0;
         $progress = $this->getProgress();
         if (null !== $progress && $progress >= 0) {
-            $duration = ceil((time() - $this->getTimestamp()) / ($progress / 100));
+            $duration = (int)ceil((time() - $this->getTimestamp()) / ($progress / 100));
         }
 
         return $duration;
@@ -163,11 +169,11 @@ class Build
     }
 
     /**
-     * @return null|string
+     * @return string
      */
-    public function getResult(): ?string
+    public function getResult(): string
     {
-        $result = match ($this->build->result) {
+        return match ($this->build->result) {
             'FAILURE' => self::FAILURE,
             'SUCCESS' => self::SUCCESS,
             'UNSTABLE' => self::UNSTABLE,
@@ -175,8 +181,6 @@ class Build
             'WAITING' => self::WAITING,
             default => self::RUNNING,
         };
-
-        return $result;
     }
 
     /**
@@ -227,9 +231,9 @@ class Build
     /**
      * @param Jenkins $jenkins
      *
-     * @return Build|Job
+     * @return Build
      */
-    public function setJenkins(Jenkins $jenkins): Job|static
+    public function setJenkins(Jenkins $jenkins): static
     {
         $this->jenkins = $jenkins;
 

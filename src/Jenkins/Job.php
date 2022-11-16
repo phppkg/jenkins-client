@@ -14,6 +14,12 @@ use PhpPkg\JenkinsClient\Jenkins;
 use RuntimeException;
 use stdClass;
 
+/**
+ * class Job
+ *
+ * @author inhere
+ * @date 2022/11/16
+ */
 class Job
 {
     /**

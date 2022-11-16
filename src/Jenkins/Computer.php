@@ -12,6 +12,12 @@ namespace PhpPkg\JenkinsClient\Jenkins;
 use PhpPkg\JenkinsClient\Jenkins;
 use stdClass;
 
+/**
+ * class Computer
+ *
+ * @author inhere
+ * @date 2022/11/16
+ */
 class Computer
 {
     /**

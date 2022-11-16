@@ -12,6 +12,12 @@ namespace PhpPkg\JenkinsClient\Jenkins;
 use PhpPkg\JenkinsClient\Jenkins;
 use stdClass;
 
+/**
+ * class View
+ *
+ * @author inhere
+ * @date 2022/11/16
+ */
 class View
 {
     /**
@@ -45,17 +51,17 @@ class View
     /**
      * @return string
      */
-    public function getDescription(): ?string
+    public function getDescription(): string
     {
-        return $this->view->description ?? null;
+        return $this->view->description ?? '';
     }
 
     /**
      * @return string
      */
-    public function getURL(): ?string
+    public function getURL(): string
     {
-        return $this->view->url ?? null;
+        return $this->view->url ?? '';
     }
 
     /**
@@ -73,7 +79,7 @@ class View
     }
 
     /**
-     * getColor
+     * get color
      *
      * @return string
      */
@@ -90,13 +96,13 @@ class View
     }
 
     /**
-     * getColorPriority
+     * get Color Priority
      *
      * @param string $color
      *
      * @return int
      */
-    protected function getColorPriority(string $color): ?int
+    protected function getColorPriority(string $color): int
     {
         switch ($color) {
             default:

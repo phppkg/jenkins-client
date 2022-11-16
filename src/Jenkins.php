@@ -9,7 +9,6 @@
 
 namespace PhpPkg\JenkinsClient;
 
-use DomDocument;
 use InvalidArgumentException;
 use PhpPkg\JenkinsClient\Jenkins\Job;
 use RuntimeException;
@@ -464,12 +463,12 @@ class Jenkins
      * @param string $job
      * @param int $buildId
      *
-     * @return null|string
+     * @return string
      */
-    public function getUrlBuild(string $job, int $buildId): ?string
+    public function getBuildUrl(string $job, int $buildId): string
     {
-        return (null === $buildId) ?
-            $this->getUrlJob($job)
+        return $buildId < 1 ?
+            $this->getJobUrl($job)
             : sprintf('%s/job/%s/%d', $this->baseUrl, $job, $buildId);
     }
 
@@ -510,61 +509,34 @@ class Jenkins
     }
 
     /**
-     * @param string $job
+     * @param string $jobName
      *
      * @return string
      */
-    public function getUrlJob(string $job): string
+    public function getJobUrl(string $jobName): string
     {
-        return sprintf('%s/job/%s', $this->baseUrl, $job);
+        return sprintf('%s/job/%s', $this->baseUrl, $jobName);
     }
 
     /**
-     * getUrlView
+     * get View Url
      *
      * @param string $view
      *
      * @return string
      */
-    public function getUrlView(string $view): string
+    public function getViewUrl(string $view): string
     {
         return sprintf('%s/view/%s', $this->baseUrl, $view);
     }
 
     /**
-     * @param string $jobname
-     *
-     * @return string
-     *
-     * @throws RuntimeException
-     *@deprecated use getJobConfig instead
-     *
-     */
-    public function retrieveXmlConfigAsString(string $jobname): string
-    {
-        return $this->getJobConfig($jobname);
-    }
-
-    /**
-     * @param string $jobname
-     * @param DomDocument $document
-     *
-     * @deprecated use setJobConfig instead
-     */
-    public function setConfigFromDomDocument(string $jobname, DomDocument $document): void
-    {
-        $this->setJobConfig($jobname, $document->saveXML());
-    }
-
-    /**
-     * @param string $jobname
+     * @param string $jobName
      * @param string $xmlConfiguration
-     *
-     * @throws InvalidArgumentException
      */
-    public function createJob(string $jobname, string $xmlConfiguration): void
+    public function createJob(string $jobName, string $xmlConfiguration): void
     {
-        $url  = sprintf('%s/createItem?name=%s', $this->baseUrl, $jobname);
+        $url  = sprintf('%s/createItem?name=%s', $this->baseUrl, $jobName);
         $curl = curl_init($url);
         curl_setopt($curl, CURLOPT_POST, 1);
 
@@ -582,22 +554,22 @@ class Jenkins
         $response = curl_exec($curl);
 
         if (curl_getinfo($curl, CURLINFO_HTTP_CODE) !== 200) {
-            throw new InvalidArgumentException(sprintf('Job %s already exists', $jobname));
+            throw new InvalidArgumentException(sprintf('Job %s already exists', $jobName));
         }
         if (curl_errno($curl)) {
-            throw new RuntimeException(sprintf('Error creating job %s', $jobname));
+            throw new RuntimeException(sprintf('Error creating job %s', $jobName));
         }
     }
 
     /**
-     * @param string $jobname
+     * @param string $jobName
      * @param        $configuration
      *
      * @internal param string $document
      */
-    public function setJobConfig(string $jobname, $configuration): void
+    public function setJobConfig(string $jobName, $configuration): void
     {
-        $url  = sprintf('%s/job/%s/config.xml', $this->baseUrl, $jobname);
+        $url  = sprintf('%s/job/%s/config.xml', $this->baseUrl, $jobName);
         $curl = curl_init($url);
         curl_setopt($curl, CURLOPT_POST, 1);
         curl_setopt($curl, CURLOPT_POSTFIELDS, $configuration);
@@ -611,22 +583,22 @@ class Jenkins
         curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
         curl_exec($curl);
 
-        $this->validateCurl($curl, sprintf('Error during setting configuration for job %s', $jobname));
+        $this->validateCurl($curl, sprintf('Error during setting configuration for job %s', $jobName));
     }
 
     /**
-     * @param string $jobname
+     * @param string $jobName
      *
      * @return string
      */
-    public function getJobConfig(string $jobname): string
+    public function getJobConfig(string $jobName): string
     {
-        $url  = sprintf('%s/job/%s/config.xml', $this->baseUrl, $jobname);
+        $url  = sprintf('%s/job/%s/config.xml', $this->baseUrl, $jobName);
         $curl = curl_init($url);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
         $ret = curl_exec($curl);
 
-        $this->validateCurl($curl, sprintf('Error during getting configuration for job %s', $jobname));
+        $this->validateCurl($curl, sprintf('Error during getting configuration for job %s', $jobName));
 
         return $ret;
     }
@@ -666,7 +638,6 @@ class Jenkins
     /**
      * @param Jenkins\JobQueue $queue
      *
-     * @throws RuntimeException
      * @return void
      */
     public function cancelQueue(Jenkins\JobQueue $queue): void
@@ -740,14 +711,14 @@ class Jenkins
     }
 
     /**
-     * @param string $jobname
+     * @param string $jobName
      * @param string $buildNumber
      *
      * @return string
      */
-    public function getConsoleTextBuild(string $jobname, string $buildNumber): string
+    public function getConsoleTextBuild(string $jobName, string $buildNumber): string
     {
-        $url  = sprintf('%s/job/%s/%s/consoleText', $this->baseUrl, $jobname, $buildNumber);
+        $url  = sprintf('%s/job/%s/%s/consoleText', $this->baseUrl, $jobName, $buildNumber);
         $curl = curl_init($url);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
 
@@ -760,7 +731,6 @@ class Jenkins
      *
      * @return array|Jenkins\TestReport
      * @internal param string $buildNumber
-     *
      */
     public function getTestReport(string $jobName, $buildId): array|Jenkins\TestReport
     {
