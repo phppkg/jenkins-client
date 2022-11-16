@@ -1,0 +1,27 @@
+{
+  "name": "phppkg/jenkins-client",
+  "type": "library",
+  "description": "Jenkins PHP API client",
+  "keywords": ["jenkins", "api", "jenkins-client"],
+  "homepage": "https://github.com/phppkg/jenkins-client",
+  "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "PhpPkg\\JenkinsClient\\": "src/"
+    }
+  },
+  "require": {
+    "php": ">8.0",
+    "phppkg/http-client": "^3.0",
+    "toolkit/stdlib": "^2.0"
+  },
+  "config": {
+    "bin-dir": "bin"
+  },
+  "authors": [
+    {
+      "name": "inhere",
+      "homepage": "https://github.com/jenkins-khan"
+    }
+  ]
+}
