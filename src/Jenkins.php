@@ -95,6 +95,21 @@ class Jenkins // extends AbstractObj
      *     'password' => '',
      *  ]
      */
+    public static function new(string $baseUrl, array $config = []): self
+    {
+        return new self($baseUrl, $config);
+    }
+
+    /**
+     * @param string $baseUrl Jenkins server host URL
+     * @param array $config = [
+     *     'enableCache' => false,
+     *     'cacheDir' => '',
+     *     'username' => '',
+     *     'apiToken' => '',
+     *     'password' => '',
+     *  ]
+     */
     public function __construct(string $baseUrl, array $config = [])
     {
         $this->baseUrl = $baseUrl;
