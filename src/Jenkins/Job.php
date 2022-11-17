@@ -11,7 +11,6 @@ namespace PhpPkg\JenkinsClient\Jenkins;
 
 use DOMDocument;
 use PhpPkg\JenkinsClient\Jenkins;
-use RuntimeException;
 use stdClass;
 
 /**
@@ -60,7 +59,6 @@ class Job
      * @param int $buildId
      *
      * @return Build
-     * @throws RuntimeException
      */
     public function getJenkinsBuild(int $buildId): Build
     {

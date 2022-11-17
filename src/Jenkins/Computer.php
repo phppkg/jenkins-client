@@ -117,6 +117,6 @@ class Computer
      */
     public function getConfiguration(): string
     {
-        return $this->getJenkins()->getComputerConfiguration($this->getName());
+        return $this->getJenkins()->getComputerConfig($this->getName());
     }
 }

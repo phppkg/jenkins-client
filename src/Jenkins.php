@@ -9,18 +9,15 @@
 
 namespace PhpPkg\JenkinsClient;
 
-use InvalidArgumentException;
 use PhpPkg\Http\Client\AbstractClient;
 use PhpPkg\Http\Client\Client;
 use PhpPkg\JenkinsClient\Jenkins\Job;
 use RuntimeException;
 use stdClass;
 use Throwable;
+use Toolkit\Stdlib\Helper\Assert;
+use function explode;
 use function sprintf;
-use const CURLOPT_HTTPHEADER;
-use const CURLOPT_POST;
-use const CURLOPT_POSTFIELDS;
-use const CURLOPT_RETURNTRANSFER;
 
 /**
  * class Jenkins
@@ -28,12 +25,31 @@ use const CURLOPT_RETURNTRANSFER;
  * @author inhere
  * @date 2022/11/16
  */
-class Jenkins
+class Jenkins // extends AbstractObj
 {
     /**
      * @var string
      */
     private string $baseUrl;
+
+    /**
+     * Jenkins username
+     *
+     * @var string
+     */
+    private string $username = '';
+
+    /**
+     * Jenkins user password
+     *
+     * @var string
+     */
+    private string $password = '';
+
+    /**
+     * @var string
+     */
+    private string $apiToken = '';
 
     /**
      * @var null all jenkins info by /api/json
@@ -62,7 +78,7 @@ class Jenkins
      *
      * @var string
      */
-    private string $crumb;
+    private string $crumb = '';
 
     /**
      * The header to use for sending anti-CSRF crumbs
@@ -71,7 +87,7 @@ class Jenkins
      *
      * @var string
      */
-    private string $crumbRequestField;
+    private string $crumbRequestField = '';
 
     /**
      * @param string $baseUrl
@@ -94,7 +110,6 @@ class Jenkins
 
         if (!$crumbResult || !is_object($crumbResult)) {
             $this->crumbsEnabled = false;
-
             return;
         }
 
@@ -134,14 +149,9 @@ class Jenkins
         return $cli->getJsonObject();
     }
 
-    public function getCrumbHeader(): string
-    {
-        return "$this->crumbRequestField: $this->crumb";
-    }
-
     public function getCrumbHeaders(): array
     {
-        return [$this->crumbRequestField =>  $this->crumb];
+        return [$this->crumbRequestField => $this->crumb];
     }
 
     /**
@@ -223,7 +233,7 @@ class Jenkins
 
         $executors = [];
         for ($i = 0; $i < $this->jenkins->numExecutors; $i++) {
-            $url  = sprintf('%s/computer/%s/executors/%s/api/json', $this->baseUrl, $computer, $i);
+            $url = sprintf('%s/computer/%s/executors/%s/api/json', $this->baseUrl, $computer, $i);
             $cli = $this->getHttpClient()->get($url);
 
             if (!$cli->isSuccess()) {
@@ -239,7 +249,7 @@ class Jenkins
     }
 
     /**
-     * @param   string    $jobName
+     * @param string $jobName
      * @param array $parameters
      *
      * @return bool
@@ -273,7 +283,7 @@ class Jenkins
      */
     public function getJob(string $jobName): Job
     {
-        $url  = sprintf('%s/job/%s/api/json', $this->baseUrl, $jobName);
+        $url = sprintf('%s/job/%s/api/json', $this->baseUrl, $jobName);
         $cli = $this->getHttpClient()->get($url);
 
         if (!$cli->isSuccess()) {
@@ -297,7 +307,7 @@ class Jenkins
             $headers = $this->getCrumbHeaders();
         }
 
-        $url  = sprintf('%s/job/%s/doDelete', $this->baseUrl, $jobName);
+        $url = sprintf('%s/job/%s/doDelete', $this->baseUrl, $jobName);
         $cli = $this->getHttpClient()->post($url, null, $headers);
 
         if (!$cli->isSuccess()) {
@@ -310,7 +320,7 @@ class Jenkins
      */
     public function getQueue(): Jenkins\Queue
     {
-        $url  = sprintf('%s/queue/api/json', $this->baseUrl);
+        $url = sprintf('%s/queue/api/json', $this->baseUrl);
         $cli = $this->getHttpClient()->get($url);
 
         if (!$cli->isSuccess()) {
@@ -423,7 +433,7 @@ class Jenkins
         $cli = $this->getHttpClient()->get($url);
 
         if (!$cli->isSuccess()) {
-            throw new RuntimeException(sprintf('Error on get information for computer %s on %s', $computerName, $this->baseUrl));
+            throw new RuntimeException(sprintf('Error on get information for computer %s', $computerName));
         }
 
         $infos = $cli->getJsonObject();
@@ -466,54 +476,55 @@ class Jenkins
      */
     public function createJob(string $jobName, string $xmlConfiguration): void
     {
-        $url  = sprintf('%s/createItem?name=%s', $this->baseUrl, $jobName);
-        $curl = curl_init($url);
-        curl_setopt($curl, CURLOPT_POST, 1);
-
-        curl_setopt($curl, CURLOPT_POSTFIELDS, $xmlConfiguration);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-
-        $headers = ['Content-Type: text/xml'];
-
+        $headers = ['Content-Type' => 'text/xml'];
         if ($this->areCrumbsEnabled()) {
-            $headers[] = $this->getCrumbHeader();
+            $headers = $this->getCrumbHeaders();
         }
 
-        curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
+        $url = sprintf('%s/createItem?name=%s', $this->baseUrl, $jobName);
+        $cli = $this->getHttpClient()->post($url, $xmlConfiguration, $headers);
 
-        $response = curl_exec($curl);
-
-        if (curl_getinfo($curl, CURLINFO_HTTP_CODE) !== 200) {
-            throw new InvalidArgumentException(sprintf('Job %s already exists', $jobName));
+        if (!$cli->isSuccess()) {
+            throw new RuntimeException(sprintf('The job %s already exists', $jobName));
         }
-        if (curl_errno($curl)) {
-            throw new RuntimeException(sprintf('Error creating job %s', $jobName));
+        // if (curl_errno($curl)) {
+        // throw new RuntimeException(sprintf('Error creating job %s', $jobName));
+        // }
+    }
+
+    /**
+     * To copy a job, send a POST request to this URL with three query parameters name=NEWJOBNAME&mode=copy&from=FROMJOBNAME
+     *
+     * @param string $jobName new job name
+     * @param string $fromJob from job name
+     */
+    public function createJobByCopy(string $jobName, string $fromJob): void
+    {
+        $url = sprintf('%s/createItem?mode=copy&name=%s&from=%s', $this->baseUrl, $jobName, $fromJob);
+        $cli = $this->getHttpClient()->post($url);
+
+        if (!$cli->isSuccess()) {
+            throw new RuntimeException(sprintf('The job %s already exists', $jobName));
         }
     }
 
     /**
      * @param string $jobName
-     * @param        $configuration
-     *
-     * @internal param string $document
+     * @param string $configuration
      */
-    public function setJobConfig(string $jobName, $configuration): void
+    public function setJobConfig(string $jobName, string $configuration): void
     {
-        $url  = sprintf('%s/job/%s/config.xml', $this->baseUrl, $jobName);
-        $curl = curl_init($url);
-        curl_setopt($curl, CURLOPT_POST, 1);
-        curl_setopt($curl, CURLOPT_POSTFIELDS, $configuration);
-
-        $headers = ['Content-Type: text/xml'];
-
+        $headers = ['Content-Type' => 'text/xml'];
         if ($this->areCrumbsEnabled()) {
-            $headers[] = $this->getCrumbHeader();
+            $headers = $this->getCrumbHeaders();
         }
 
-        curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
-        curl_exec($curl);
+        $url = sprintf('%s/job/%s/config.xml', $this->baseUrl, $jobName);
+        $cli = $this->getHttpClient()->post($url, $configuration, $headers);
 
-        $this->validateCurl($curl, sprintf('Error during setting configuration for job %s', $jobName));
+        if (!$cli->isSuccess()) {
+            throw new RuntimeException(sprintf('Error during setting configuration for job %s', $jobName));
+        }
     }
 
     /**
@@ -523,23 +534,26 @@ class Jenkins
      */
     public function getJobConfig(string $jobName): string
     {
-        $url  = sprintf('%s/job/%s/config.xml', $this->baseUrl, $jobName);
-        $curl = curl_init($url);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-        $ret = curl_exec($curl);
+        $url = sprintf('%s/job/%s/config.xml', $this->baseUrl, $jobName);
+        $cli = $this->getHttpClient()->get($url);
 
-        $this->validateCurl($curl, sprintf('Error during getting configuration for job %s', $jobName));
+        if (!$cli->isSuccess()) {
+            throw new RuntimeException(sprintf('Error on get configuration for job %s', $jobName));
+        }
 
-        return $ret;
+        return $cli->getResponseBody();
     }
 
     /**
      * @param Jenkins\Executor $executor
-     *
-     * @throws RuntimeException
      */
     public function stopExecutor(Jenkins\Executor $executor): void
     {
+        $headers = [];
+        if ($this->areCrumbsEnabled()) {
+            $headers = $this->getCrumbHeaders();
+        }
+
         $url = sprintf(
             '%s/computer/%s/executors/%s/stop',
             $this->baseUrl,
@@ -547,22 +561,11 @@ class Jenkins
             $executor->getNumber()
         );
 
-        $curl = curl_init($url);
-        curl_setopt($curl, CURLOPT_POST, 1);
+        $cli = $this->getHttpClient()->post($url, null, $headers);
 
-        $headers = [];
-
-        if ($this->areCrumbsEnabled()) {
-            $headers[] = $this->getCrumbHeader();
+        if (!$cli->isSuccess()) {
+            throw new RuntimeException(sprintf('Error during stopping executor #%s', $executor->getNumber()));
         }
-
-        curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
-        curl_exec($curl);
-
-        $this->validateCurl(
-            $curl,
-            sprintf('Error during stopping executor #%s', $executor->getNumber())
-        );
     }
 
     /**
@@ -572,72 +575,57 @@ class Jenkins
      */
     public function cancelQueue(Jenkins\JobQueue $queue): void
     {
-        $url = sprintf('%s/queue/item/%s/cancelQueue', $this->baseUrl, $queue->getId());
-
-        $curl = curl_init($url);
-        curl_setopt($curl, CURLOPT_POST, 1);
-
         $headers = [];
-
         if ($this->areCrumbsEnabled()) {
-            $headers[] = $this->getCrumbHeader();
+            $headers = $this->getCrumbHeaders();
         }
 
-        curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
-        curl_exec($curl);
+        $url = $this->buildUrl('%s/queue/item/%s/cancelQueue', $queue->getId());
+        $cli = $this->getHttpClient()->post($url, null, $headers);
 
-        $this->validateCurl(
-            $curl,
-            sprintf('Error during stopping job queue #%s', $queue->getId())
-        );
+        if (!$cli->isSuccess()) {
+            throw new RuntimeException(sprintf('Error during stopping job queue #%s', $queue->getId()));
+        }
     }
 
     /**
      * @param string $computerName
      *
      * @return void
-     * @throws RuntimeException
      */
     public function toggleOfflineComputer(string $computerName): void
     {
-        $url  = sprintf('%s/computer/%s/toggleOffline', $this->baseUrl, $computerName);
-        $curl = curl_init($url);
-        curl_setopt($curl, CURLOPT_POST, 1);
-
         $headers = [];
-
         if ($this->areCrumbsEnabled()) {
-            $headers[] = $this->getCrumbHeader();
+            $headers = $this->getCrumbHeaders();
         }
 
-        curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
-        curl_exec($curl);
+        $url = $this->buildUrl('%s/computer/%s/toggleOffline', $computerName);
+        $cli = $this->getHttpClient()->post($url, null, $headers);
 
-        $this->validateCurl($curl, sprintf('Error marking %s offline', $computerName));
+        if (!$cli->isSuccess()) {
+            throw new RuntimeException("Error on marking $computerName offline");
+        }
     }
 
     /**
      * @param string $computerName
      *
      * @return void
-     * @throws RuntimeException
      */
     public function deleteComputer(string $computerName): void
     {
-        $url  = sprintf('%s/computer/%s/doDelete', $this->baseUrl, $computerName);
-        $curl = curl_init($url);
-        curl_setopt($curl, CURLOPT_POST, 1);
-
         $headers = [];
-
         if ($this->areCrumbsEnabled()) {
-            $headers[] = $this->getCrumbHeader();
+            $headers = $this->getCrumbHeaders();
         }
 
-        curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
-        curl_exec($curl);
+        $url = $this->buildUrl('%s/computer/%s/doDelete', $computerName);
+        $cli = $this->getHttpClient()->post($url, null, $headers);
 
-        $this->validateCurl($curl, sprintf('Error deleting %s', $computerName));
+        if (!$cli->isSuccess()) {
+            throw new RuntimeException("Error on deleting computer $computerName");
+        }
     }
 
     /**
@@ -648,11 +636,14 @@ class Jenkins
      */
     public function getConsoleTextBuild(string $jobName, string $buildNumber): string
     {
-        $url  = sprintf('%s/job/%s/%s/consoleText', $this->baseUrl, $jobName, $buildNumber);
-        $curl = curl_init($url);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
+        $url = $this->buildUrl('%s/job/%s/%s/consoleText', $jobName, $buildNumber);
+        $cli = $this->getHttpClient()->get($url);
 
-        return curl_exec($curl);
+        if (!$cli->isSuccess()) {
+            throw new RuntimeException('Error on get computers information');
+        }
+
+        return $cli->getResponseBody();
     }
 
     /**
@@ -663,7 +654,7 @@ class Jenkins
      */
     public function getTestReport(string $jobName, int $buildId): Jenkins\TestReport
     {
-        $url  = sprintf('%s/job/%s/%d/testReport/api/json', $this->baseUrl, $jobName, $buildId);
+        $url = $this->buildUrl('%s/job/%s/%d/testReport/api/json', $jobName, $buildId);
         $cli = $this->getHttpClient()->get($url);
 
         if (!$cli->isSuccess()) {
@@ -679,33 +670,11 @@ class Jenkins
     }
 
     /**
-     * Returns the content of a page according to the jenkins base url.
-     * Useful if you use jenkins plugins that provides specific APIs.
-     * (e.g. "/cloud/ec2-us-east-1/provision")
-     *
-     * @param string $uri
-     * @param array $curlOptions
-     *
-     * @return string
-     */
-    public function execute(string $uri, array $curlOptions): string
-    {
-        $url  = $this->baseUrl . '/' . $uri;
-        $curl = curl_init($url);
-        curl_setopt_array($curl, $curlOptions);
-        $ret = curl_exec($curl);
-
-        $this->validateCurl($curl, sprintf('Error calling "%s"', $url));
-
-        return $ret;
-    }
-
-    /**
      * @return Jenkins\Computer[]
      */
     public function getComputers(): array
     {
-        $url = $this->baseUrl . '/computer/api/json';
+        $url = $this->buildUrl('/computer/api/json');
         $cli = $this->getHttpClient()->get($url);
 
         if (!$cli->isSuccess()) {
@@ -727,9 +696,9 @@ class Jenkins
      *
      * @return string
      */
-    public function getComputerConfiguration(string $computerName): string
+    public function getComputerConfig(string $computerName): string
     {
-        $url = $this->baseUrl . sprintf('/computer/%s/config.xml', $computerName);
+        $url = $this->buildUrl('/computer/%s/config.xml', $computerName);
         $cli = $this->getHttpClient()->get($url);
 
         if (!$cli->isSuccess()) {
@@ -740,21 +709,24 @@ class Jenkins
     }
 
     /**
-     * Validate curl_error() and http_code in a cURL request
+     * @param string $pathFmt
+     * @param mixed ...$args
      *
-     * @param $curl
-     * @param $errorMessage
+     * @return string
      */
-    private function validateCurl($curl, $errorMessage): void
+    public function buildUrl(string $pathFmt, ...$args): string
     {
-        if (curl_errno($curl)) {
-            throw new RuntimeException($errorMessage);
-        }
-        $info = curl_getinfo($curl);
+        $apiPath = $args ? sprintf($pathFmt, ...$args) : $pathFmt;
+        Assert::notEmpty($this->baseUrl, 'jenkins base url cannot be empty');
 
-        if ($info['http_code'] === 403) {
-            throw new RuntimeException(sprintf('Access Denied [HTTP status code 403] to %s"', $info['url']));
+        // with auth http://user:token@host.org:8080
+        if ($this->username && $this->password) {
+            [$prefix, $host] = explode('://', $this->baseUrl, 2);
+
+            return sprintf('%s://%s:%s@%s%s', $prefix, $this->username, $this->password, $host, $apiPath);
         }
+
+        return $this->baseUrl . $apiPath;
     }
 
     /**
@@ -765,6 +737,7 @@ class Jenkins
         if (!$this->httpClient) {
             $this->httpClient = Client::factory([
                 'baseUrl' => $this->baseUrl,
+                'headers' => $this->apiToken ? ['token' => $this->apiToken] : [],
             ]);
         }
 
@@ -777,6 +750,66 @@ class Jenkins
     public function setHttpClient(AbstractClient $httpClient): void
     {
         $this->httpClient = $httpClient;
+    }
+
+    /**
+     * @return string
+     */
+    public function getApiToken(): string
+    {
+        return $this->apiToken;
+    }
+
+    /**
+     * @param string $apiToken
+     */
+    public function setApiToken(string $apiToken): void
+    {
+        $this->apiToken = $apiToken;
+    }
+
+    /**
+     * @param string $username
+     * @param string $passwd
+     *
+     * @return void
+     */
+    public function setUserAuth(string $username, string $passwd): void
+    {
+        $this->setUsername($username);
+        $this->setPassword($passwd);
+    }
+
+    /**
+     * @return string
+     */
+    public function getUsername(): string
+    {
+        return $this->username;
+    }
+
+    /**
+     * @param string $username
+     */
+    public function setUsername(string $username): void
+    {
+        $this->username = $username;
+    }
+
+    /**
+     * @return string
+     */
+    public function getPassword(): string
+    {
+        return $this->password;
+    }
+
+    /**
+     * @param string $password
+     */
+    public function setPassword(string $password): void
+    {
+        $this->password = $password;
     }
 
 }

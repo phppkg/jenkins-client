@@ -19,11 +19,17 @@ class Factory
 {
     /**
      * @param string $url
+     * @param string $username
+     * @param string $apiToken
      *
      * @return Jenkins
      */
-    public static function make(string $url): Jenkins
+    public static function make(string $url, string $username, string $apiToken = ''): Jenkins
     {
-        return new Jenkins($url);
+        $jk = new Jenkins($url);
+        $jk->setUsername($username);
+        $jk->setApiToken($apiToken);
+
+        return $jk;
     }
 }
