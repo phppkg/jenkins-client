@@ -13,10 +13,14 @@ use PhpPkg\Http\Client\AbstractClient;
 use PhpPkg\Http\Client\Client;
 use PhpPkg\JenkinsClient\Jenkins\Job;
 use RuntimeException;
-use stdClass;
 use Throwable;
+use Toolkit\FsUtil\File;
 use Toolkit\Stdlib\Helper\Assert;
+use Toolkit\Stdlib\Obj;
+use Toolkit\Stdlib\Obj\DataObject;
 use function explode;
+use function is_file;
+use function md5;
 use function sprintf;
 
 /**
@@ -27,7 +31,11 @@ use function sprintf;
  */
 class Jenkins // extends AbstractObj
 {
+    use JenkinsCrumbTrait;
+
     /**
+     * Jenkins server host URL
+     *
      * @var string
      */
     private string $baseUrl;
@@ -37,121 +45,63 @@ class Jenkins // extends AbstractObj
      *
      * @var string
      */
-    private string $username = '';
+    public string $username = '';
 
     /**
      * Jenkins user password
      *
+     * - usage: https://USER:PASSWORD@some.com/api/json
+     *
      * @var string
      */
-    private string $password = '';
+    public string $password = '';
 
     /**
+     * Jenkins user token.
+     *
+     * - usage: https://USER:TOKEN@some.com/api/json
+     *
      * @var string
      */
-    private string $apiToken = '';
+    public string $apiToken = '';
 
     /**
-     * @var null all jenkins info by /api/json
+     * @var bool cache jenkins info
      */
-    private $jenkins = null;
+    public bool $enableCache = false;
+
+    /**
+     * @var string cache dir
+     */
+    public string $cacheDir = '';
+
+    /**
+     * @var DataObject|null all jenkins info by /api/json
+     */
+    private DataObject|null $jenkins = null;
 
     /**
      * @var AbstractClient|null
      */
-    private ?AbstractClient $httpClient;
+    private ?AbstractClient $httpClient = null;
 
     /**
-     * Whether or not to retrieve and send anti-CSRF crumb tokens
-     * with each request
-     *
-     * Defaults to false for backwards compatibility
-     *
-     * @var boolean
+     * @param string $baseUrl Jenkins server host URL
+     * @param array $config = [
+     *     'enableCache' => false,
+     *     'cacheDir' => '',
+     *     'username' => '',
+     *     'apiToken' => '',
+     *     'password' => '',
+     *  ]
      */
-    private bool $crumbsEnabled = false;
-
-    /**
-     * The anti-CSRF crumb to use for each request
-     *
-     * Set when crumbs are enabled, by requesting a new crumb from Jenkins
-     *
-     * @var string
-     */
-    private string $crumb = '';
-
-    /**
-     * The header to use for sending anti-CSRF crumbs
-     *
-     * Set when crumbs are enabled, by requesting a new crumb from Jenkins
-     *
-     * @var string
-     */
-    private string $crumbRequestField = '';
-
-    /**
-     * @param string $baseUrl
-     */
-    public function __construct(string $baseUrl)
+    public function __construct(string $baseUrl, array $config = [])
     {
         $this->baseUrl = $baseUrl;
-    }
 
-    /**
-     * Enable the use of anti-CSRF crumbs on requests
-     *
-     * @return void
-     */
-    public function enableCrumbs(): void
-    {
-        $this->crumbsEnabled = true;
-
-        $crumbResult = $this->requestCrumb();
-
-        if (!$crumbResult || !is_object($crumbResult)) {
-            $this->crumbsEnabled = false;
-            return;
+        if ($config) {
+            Obj::init($this, $config);
         }
-
-        $this->crumb             = $crumbResult->crumb;
-        $this->crumbRequestField = $crumbResult->crumbRequestField;
-    }
-
-    /**
-     * Disable the use of anti-CSRF crumbs on requests
-     *
-     * @return void
-     */
-    public function disableCrumbs(): void
-    {
-        $this->crumbsEnabled = false;
-    }
-
-    /**
-     * Get the status of anti-CSRF crumbs
-     *
-     * @return boolean Whether or not crumbs have been enabled
-     */
-    public function areCrumbsEnabled(): bool
-    {
-        return $this->crumbsEnabled;
-    }
-
-    public function requestCrumb(): stdClass
-    {
-        $url = sprintf('%s/crumbIssuer/api/json', $this->baseUrl);
-        $cli = $this->getHttpClient()->get($url);
-
-        if (!$cli->isSuccess()) {
-            throw new RuntimeException('Error on get csrf crumb');
-        }
-
-        return $cli->getJsonObject();
-    }
-
-    public function getCrumbHeaders(): array
-    {
-        return [$this->crumbRequestField => $this->crumb];
     }
 
     /**
@@ -171,23 +121,59 @@ class Jenkins // extends AbstractObj
     /**
      * @return void
      */
+    public function refreshCache(): void
+    {
+        $this->loadJenkinsInfo();
+    }
+
+    /**
+     * @return void
+     */
     private function initialize(): void
     {
         if (null !== $this->jenkins) {
             return;
         }
 
-        $url = $this->baseUrl . '/api/json';
+        if ($this->enableCache && $this->cacheDir) {
+            $cacheFile = $this->getCacheFile();
+
+            if (is_file($cacheFile)) {
+                $this->jenkins = DataObject::fromJson(File::readAll($cacheFile));
+                return;
+            }
+        }
+
+        $this->loadJenkinsInfo();
+    }
+
+    private function loadJenkinsInfo(): void
+    {
+        $url = $this->buildUrl('/api/json');
         $cli = $this->getHttpClient()->get($url);
 
         if (!$cli->isSuccess()) {
-            throw new RuntimeException(sprintf('Error on get list of jobs on %s', $this->baseUrl));
+            throw new RuntimeException('Error on get list of jobs');
         }
 
-        $this->jenkins = $cli->getJsonObject();
-        if (!$this->jenkins instanceof stdClass) {
+        $this->jenkins = $cli->getDataObject();
+        if ($this->jenkins->isEmpty()) {
             throw new RuntimeException('Error during json_decode the /api/json data');
         }
+
+        if ($this->enableCache && $this->cacheDir) {
+            File::mkdirSave($this->getCacheFile(), $this->jenkins->toString());
+        }
+    }
+
+    /**
+     * @return string
+     */
+    public function getCacheFile(): string
+    {
+        $filename  = md5($this->baseUrl . $this->username) . '.json';
+
+        return File::join($this->cacheDir, $filename);
     }
 
     /**
@@ -197,10 +183,14 @@ class Jenkins // extends AbstractObj
     {
         $this->initialize();
 
+        // vdump(json_encode($this->jenkins));
+
         $jobs = [];
         foreach ($this->jenkins->jobs as $job) {
-            $jobs[$job->name] = [
-                'name' => $job->name
+            $jobName = $job['name'];
+            // add
+            $jobs[$jobName] = [
+                'name' => $jobName,
             ];
         }
 
@@ -216,7 +206,9 @@ class Jenkins // extends AbstractObj
 
         $jobs = [];
         foreach ($this->jenkins->jobs as $job) {
-            $jobs[$job->name] = $this->getJob($job->name);
+            $jobName = $job['name'];
+
+            $jobs[$jobName] = $this->getJob($jobName);
         }
 
         return $jobs;
@@ -233,11 +225,11 @@ class Jenkins // extends AbstractObj
 
         $executors = [];
         for ($i = 0; $i < $this->jenkins->numExecutors; $i++) {
-            $url = sprintf('%s/computer/%s/executors/%s/api/json', $this->baseUrl, $computer, $i);
+            $url = $this->buildUrl('/computer/%s/executors/%s/api/json', $computer, $i);
             $cli = $this->getHttpClient()->get($url);
 
             if (!$cli->isSuccess()) {
-                throw new RuntimeException(sprintf('Error on get information for executors[%s@%s] on %s', $i, $computer, $this->baseUrl));
+                throw new RuntimeException(sprintf('Error on get information for executors[%s@%s]', $i, $computer));
             }
 
             $infos = $cli->getJsonObject();
@@ -257,13 +249,13 @@ class Jenkins // extends AbstractObj
     public function launchJob(string $jobName, array $parameters = []): bool
     {
         if (0 === count($parameters)) {
-            $url = sprintf('%s/job/%s/build', $this->baseUrl, $jobName);
+            $url = $this->buildUrl('/job/%s/build', $jobName);
         } else {
-            $url = sprintf('%s/job/%s/buildWithParameters', $this->baseUrl, $jobName);
+            $url = $this->buildUrl('/job/%s/buildWithParameters', $jobName);
         }
 
         $headers = [];
-        if ($this->areCrumbsEnabled()) {
+        if ($this->isCrumbsEnabled()) {
             $headers = $this->getCrumbHeaders();
         }
 
@@ -283,11 +275,34 @@ class Jenkins // extends AbstractObj
      */
     public function getJob(string $jobName): Job
     {
-        $url = sprintf('%s/job/%s/api/json', $this->baseUrl, $jobName);
+        $url = $this->buildUrl('/job/%s/api/json', $jobName);
         $cli = $this->getHttpClient()->get($url);
 
         if (!$cli->isSuccess()) {
-            throw new RuntimeException(sprintf('Error on get information for job %s on %s', $jobName, $this->baseUrl));
+            throw new RuntimeException(sprintf('Error on get information for job %s', $jobName));
+        }
+
+        $infos = $cli->getJsonObject();
+
+        return new Jenkins\Job($infos, $this);
+    }
+
+    /**
+     * Get job build params definitions
+     *
+     * @param string $jobName
+     * @param string $tree
+     *
+     * @return Job
+     */
+    public function getJobParams(string $jobName, string $tree = ''): Job
+    {
+        $tree = $tree ?: 'property[parameterDefinitions[description,name,type,choices]]';
+        $url  = $this->buildUrl('/job/%s/api/json?tree=%s', $jobName, $tree);
+        $cli  = $this->getHttpClient()->get($url);
+
+        if (!$cli->isSuccess()) {
+            throw new RuntimeException(sprintf('Error on get information for job %s', $jobName));
         }
 
         $infos = $cli->getJsonObject();
@@ -303,15 +318,15 @@ class Jenkins // extends AbstractObj
     public function deleteJob(string $jobName): void
     {
         $headers = [];
-        if ($this->areCrumbsEnabled()) {
+        if ($this->isCrumbsEnabled()) {
             $headers = $this->getCrumbHeaders();
         }
 
-        $url = sprintf('%s/job/%s/doDelete', $this->baseUrl, $jobName);
+        $url = $this->buildUrl('/job/%s/doDelete', $jobName);
         $cli = $this->getHttpClient()->post($url, null, $headers);
 
         if (!$cli->isSuccess()) {
-            throw new RuntimeException(sprintf('Error deleting job %s on %s', $jobName, $this->baseUrl));
+            throw new RuntimeException(sprintf('Error deleting job %s', $jobName));
         }
     }
 
@@ -320,11 +335,11 @@ class Jenkins // extends AbstractObj
      */
     public function getQueue(): Jenkins\Queue
     {
-        $url = sprintf('%s/queue/api/json', $this->baseUrl);
+        $url = $this->buildUrl('/queue/api/json');
         $cli = $this->getHttpClient()->get($url);
 
         if (!$cli->isSuccess()) {
-            throw new RuntimeException(sprintf('Error on get information for queue on %s', $this->baseUrl));
+            throw new RuntimeException('Error on get information for queues');
         }
 
         $infos = $cli->getJsonObject();
@@ -369,11 +384,11 @@ class Jenkins // extends AbstractObj
      */
     public function getView(string $viewName): Jenkins\View
     {
-        $url = sprintf('%s/view/%s/api/json', $this->baseUrl, rawurlencode($viewName));
+        $url = $this->buildUrl('/view/%s/api/json', rawurlencode($viewName));
         $cli = $this->getHttpClient()->get($url);
 
         if (!$cli->isSuccess()) {
-            throw new RuntimeException(sprintf('Error on get information for view %s on %s', $viewName, $this->baseUrl));
+            throw new RuntimeException(sprintf('Error on get information for view %s', $viewName));
         }
 
         $infos = $cli->getJsonObject();
@@ -397,11 +412,11 @@ class Jenkins // extends AbstractObj
             $tree = sprintf('?tree=%s', $tree);
         }
 
-        $url = sprintf('%s/job/%s/%d/api/json%s', $this->baseUrl, $job, $buildId, $tree);
+        $url = $this->buildUrl('/job/%s/%d/api/json%s', $job, $buildId, $tree);
         $cli = $this->getHttpClient()->get($url);
 
         if (!$cli->isSuccess()) {
-            throw new RuntimeException(sprintf('Error on get information for build %s#%d on %s', $job, $buildId, $this->baseUrl));
+            throw new RuntimeException(sprintf('Error on get information for build %s#%d', $job, $buildId));
         }
 
         $infos = $cli->getJsonObject();
@@ -419,7 +434,7 @@ class Jenkins // extends AbstractObj
     {
         return $buildId < 1 ?
             $this->getJobUrl($job)
-            : sprintf('%s/job/%s/%d', $this->baseUrl, $job, $buildId);
+            : $this->buildUrl('/job/%s/%d', $job, $buildId);
     }
 
     /**
@@ -429,7 +444,7 @@ class Jenkins // extends AbstractObj
      */
     public function getComputer(string $computerName): Jenkins\Computer
     {
-        $url = sprintf('%s/computer/%s/api/json', $this->baseUrl, $computerName);
+        $url = $this->buildUrl('/computer/%s/api/json', $computerName);
         $cli = $this->getHttpClient()->get($url);
 
         if (!$cli->isSuccess()) {
@@ -443,7 +458,7 @@ class Jenkins // extends AbstractObj
     /**
      * @return string
      */
-    public function getUrl(): string
+    public function getBaseUrl(): string
     {
         return $this->baseUrl;
     }
@@ -455,7 +470,7 @@ class Jenkins // extends AbstractObj
      */
     public function getJobUrl(string $jobName): string
     {
-        return sprintf('%s/job/%s', $this->baseUrl, $jobName);
+        return $this->buildUrl('/job/%s', $jobName);
     }
 
     /**
@@ -467,7 +482,7 @@ class Jenkins // extends AbstractObj
      */
     public function getViewUrl(string $view): string
     {
-        return sprintf('%s/view/%s', $this->baseUrl, $view);
+        return $this->buildUrl('/view/%s', $view);
     }
 
     /**
@@ -477,11 +492,11 @@ class Jenkins // extends AbstractObj
     public function createJob(string $jobName, string $xmlConfiguration): void
     {
         $headers = ['Content-Type' => 'text/xml'];
-        if ($this->areCrumbsEnabled()) {
+        if ($this->isCrumbsEnabled()) {
             $headers = $this->getCrumbHeaders();
         }
 
-        $url = sprintf('%s/createItem?name=%s', $this->baseUrl, $jobName);
+        $url = $this->buildUrl('/createItem?name=%s', $jobName);
         $cli = $this->getHttpClient()->post($url, $xmlConfiguration, $headers);
 
         if (!$cli->isSuccess()) {
@@ -500,7 +515,7 @@ class Jenkins // extends AbstractObj
      */
     public function createJobByCopy(string $jobName, string $fromJob): void
     {
-        $url = sprintf('%s/createItem?mode=copy&name=%s&from=%s', $this->baseUrl, $jobName, $fromJob);
+        $url = $this->buildUrl('/createItem?mode=copy&name=%s&from=%s', $jobName, $fromJob);
         $cli = $this->getHttpClient()->post($url);
 
         if (!$cli->isSuccess()) {
@@ -515,11 +530,11 @@ class Jenkins // extends AbstractObj
     public function setJobConfig(string $jobName, string $configuration): void
     {
         $headers = ['Content-Type' => 'text/xml'];
-        if ($this->areCrumbsEnabled()) {
+        if ($this->isCrumbsEnabled()) {
             $headers = $this->getCrumbHeaders();
         }
 
-        $url = sprintf('%s/job/%s/config.xml', $this->baseUrl, $jobName);
+        $url = $this->buildUrl('/job/%s/config.xml', $jobName);
         $cli = $this->getHttpClient()->post($url, $configuration, $headers);
 
         if (!$cli->isSuccess()) {
@@ -534,7 +549,7 @@ class Jenkins // extends AbstractObj
      */
     public function getJobConfig(string $jobName): string
     {
-        $url = sprintf('%s/job/%s/config.xml', $this->baseUrl, $jobName);
+        $url = $this->buildUrl('/job/%s/config.xml', $jobName);
         $cli = $this->getHttpClient()->get($url);
 
         if (!$cli->isSuccess()) {
@@ -550,17 +565,11 @@ class Jenkins // extends AbstractObj
     public function stopExecutor(Jenkins\Executor $executor): void
     {
         $headers = [];
-        if ($this->areCrumbsEnabled()) {
+        if ($this->isCrumbsEnabled()) {
             $headers = $this->getCrumbHeaders();
         }
 
-        $url = sprintf(
-            '%s/computer/%s/executors/%s/stop',
-            $this->baseUrl,
-            $executor->getComputer(),
-            $executor->getNumber()
-        );
-
+        $url = $this->buildUrl('/computer/%s/executors/%s/stop', $executor->getComputer(), $executor->getNumber());
         $cli = $this->getHttpClient()->post($url, null, $headers);
 
         if (!$cli->isSuccess()) {
@@ -576,11 +585,11 @@ class Jenkins // extends AbstractObj
     public function cancelQueue(Jenkins\JobQueue $queue): void
     {
         $headers = [];
-        if ($this->areCrumbsEnabled()) {
+        if ($this->isCrumbsEnabled()) {
             $headers = $this->getCrumbHeaders();
         }
 
-        $url = $this->buildUrl('%s/queue/item/%s/cancelQueue', $queue->getId());
+        $url = $this->buildUrl('/queue/item/%s/cancelQueue', $queue->getId());
         $cli = $this->getHttpClient()->post($url, null, $headers);
 
         if (!$cli->isSuccess()) {
@@ -596,11 +605,11 @@ class Jenkins // extends AbstractObj
     public function toggleOfflineComputer(string $computerName): void
     {
         $headers = [];
-        if ($this->areCrumbsEnabled()) {
+        if ($this->isCrumbsEnabled()) {
             $headers = $this->getCrumbHeaders();
         }
 
-        $url = $this->buildUrl('%s/computer/%s/toggleOffline', $computerName);
+        $url = $this->buildUrl('/computer/%s/toggleOffline', $computerName);
         $cli = $this->getHttpClient()->post($url, null, $headers);
 
         if (!$cli->isSuccess()) {
@@ -616,11 +625,11 @@ class Jenkins // extends AbstractObj
     public function deleteComputer(string $computerName): void
     {
         $headers = [];
-        if ($this->areCrumbsEnabled()) {
+        if ($this->isCrumbsEnabled()) {
             $headers = $this->getCrumbHeaders();
         }
 
-        $url = $this->buildUrl('%s/computer/%s/doDelete', $computerName);
+        $url = $this->buildUrl('/computer/%s/doDelete', $computerName);
         $cli = $this->getHttpClient()->post($url, null, $headers);
 
         if (!$cli->isSuccess()) {
@@ -636,7 +645,7 @@ class Jenkins // extends AbstractObj
      */
     public function getConsoleTextBuild(string $jobName, string $buildNumber): string
     {
-        $url = $this->buildUrl('%s/job/%s/%s/consoleText', $jobName, $buildNumber);
+        $url = $this->buildUrl('/job/%s/%s/consoleText', $jobName, $buildNumber);
         $cli = $this->getHttpClient()->get($url);
 
         if (!$cli->isSuccess()) {
@@ -654,14 +663,11 @@ class Jenkins // extends AbstractObj
      */
     public function getTestReport(string $jobName, int $buildId): Jenkins\TestReport
     {
-        $url = $this->buildUrl('%s/job/%s/%d/testReport/api/json', $jobName, $buildId);
+        $url = $this->buildUrl('/job/%s/%d/testReport/api/json', $jobName, $buildId);
         $cli = $this->getHttpClient()->get($url);
 
         if (!$cli->isSuccess()) {
-            throw new RuntimeException(sprintf('Error on get information for build %s#%d on %s',
-                $jobName,
-                $buildId,
-                $this->baseUrl));
+            throw new RuntimeException(sprintf('Error on get information for build %s#%d', $jobName, $buildId));
         }
 
         $infos = $cli->getJsonObject();
@@ -720,10 +726,11 @@ class Jenkins // extends AbstractObj
         Assert::notEmpty($this->baseUrl, 'jenkins base url cannot be empty');
 
         // with auth http://user:token@host.org:8080
-        if ($this->username && $this->password) {
+        if ($this->username) {
+            $tokenOrPasswd = $this->apiToken ?: $this->password;
             [$prefix, $host] = explode('://', $this->baseUrl, 2);
 
-            return sprintf('%s://%s:%s@%s%s', $prefix, $this->username, $this->password, $host, $apiPath);
+            return sprintf('%s://%s:%s@%s%s', $prefix, $this->username, $tokenOrPasswd, $host, $apiPath);
         }
 
         return $this->baseUrl . $apiPath;
@@ -737,7 +744,7 @@ class Jenkins // extends AbstractObj
         if (!$this->httpClient) {
             $this->httpClient = Client::factory([
                 'baseUrl' => $this->baseUrl,
-                'headers' => $this->apiToken ? ['token' => $this->apiToken] : [],
+                // 'headers' => $this->apiToken ? ['token' => $this->apiToken] : [],
             ]);
         }
 
@@ -750,14 +757,6 @@ class Jenkins // extends AbstractObj
     public function setHttpClient(AbstractClient $httpClient): void
     {
         $this->httpClient = $httpClient;
-    }
-
-    /**
-     * @return string
-     */
-    public function getApiToken(): string
-    {
-        return $this->apiToken;
     }
 
     /**
@@ -781,14 +780,6 @@ class Jenkins // extends AbstractObj
     }
 
     /**
-     * @return string
-     */
-    public function getUsername(): string
-    {
-        return $this->username;
-    }
-
-    /**
      * @param string $username
      */
     public function setUsername(string $username): void
@@ -797,19 +788,27 @@ class Jenkins // extends AbstractObj
     }
 
     /**
-     * @return string
-     */
-    public function getPassword(): string
-    {
-        return $this->password;
-    }
-
-    /**
      * @param string $password
      */
     public function setPassword(string $password): void
     {
         $this->password = $password;
+    }
+
+    /**
+     * @param bool $enableCache
+     */
+    public function setEnableCache(bool $enableCache): void
+    {
+        $this->enableCache = $enableCache;
+    }
+
+    /**
+     * @param string $cacheDir
+     */
+    public function setCacheDir(string $cacheDir): void
+    {
+        $this->cacheDir = $cacheDir;
     }
 
 }

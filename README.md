@@ -29,6 +29,22 @@ $jenkins = new \PhpPkg\JenkinsClient\Jenkins('http://host.org:8080');
 
 If your Jenkins needs authentication, you need to pass a URL like this : `'http://user:token@host.org:8080'`.
 
+Simple example - sending "String Parameters":
+
+```shell
+curl JENKINS_URL/job/JOB_NAME/buildWithParameters \
+--user USER:TOKEN \
+--data id=123 --data verbosity=high
+```
+
+Another example - sending a "File Parameter":
+
+```shell
+curl JENKINS_URL/job/JOB_NAME/buildWithParameters \
+--user USER:PASSWORD \
+--form FILE_LOCATION_AS_SET_IN_JENKINS=@PATH_TO_FILE
+```
+
 Here are some examples of how to use it:
 
 ### Get the color of the job

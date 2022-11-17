@@ -12,6 +12,9 @@ namespace PhpPkg\JenkinsClient\Jenkins;
 use DOMDocument;
 use PhpPkg\JenkinsClient\Jenkins;
 use stdClass;
+use function array_keys;
+use function get_object_vars;
+use function property_exists;
 
 /**
  * class Job
@@ -33,7 +36,7 @@ class Job
 
     /**
      * @param stdClass $job
-     * @param Jenkins   $jenkins
+     * @param Jenkins $jenkins
      */
     public function __construct(stdClass $job, Jenkins $jenkins)
     {
@@ -76,31 +79,35 @@ class Job
     /**
      * @return array
      */
-    public function getParametersDefinition(): array
+    public function getParametersDefinitions(): array
     {
         $parameters = [];
 
-        foreach ($this->job->actions as $action) {
+        foreach ($this->job->property as $action) {
             if (!property_exists($action, 'parameterDefinitions')) {
                 continue;
             }
 
-            foreach ($action->parameterDefinitions as $parameterDefinition) {
-                $default     = property_exists($parameterDefinition, 'defaultParameterValue')
-                               && isset($parameterDefinition->defaultParameterValue->value)
-                    ? $parameterDefinition->defaultParameterValue->value
+            foreach ($action->parameterDefinitions as $paramDefinition) {
+                $description = property_exists($paramDefinition, 'description')
+                    ? $paramDefinition->description
                     : null;
-                $description = property_exists($parameterDefinition, 'description')
-                    ? $parameterDefinition->description
+                $paramType   = property_exists($paramDefinition, 'type') ? $paramDefinition->choices : '';
+
+                $default = property_exists($paramDefinition, 'defaultParameterValue')
+                && isset($paramDefinition->defaultParameterValue->value)
+                    ? $paramDefinition->defaultParameterValue->value
                     : null;
-                $choices     = property_exists($parameterDefinition, 'choices')
-                    ? $parameterDefinition->choices
+                $choices = property_exists($paramDefinition, 'choices')
+                    ? $paramDefinition->choices
                     : null;
 
-                $parameters[$parameterDefinition->name] = [
-                    'default'     => $default,
-                    'choices'     => $choices,
+
+                $parameters[$paramDefinition->name] = [
                     'description' => $description,
+                    'default'     => $default,
+                    'type'        => $paramType,
+                    'choices'     => $choices,
                 ];
             }
         }
@@ -177,5 +184,30 @@ class Job
         }
 
         return $this->getJenkins()->getBuild($this->getName(), $this->job->lastBuild->number);
+    }
+
+    /**
+     * @param string $propName
+     *
+     * @return mixed
+     */
+    public function getInfo(string $propName = ''): mixed
+    {
+        if ($propName) {
+            if (property_exists($this->job, $propName)) {
+                return $this->job->$propName;
+            }
+            return [];
+        }
+
+        return $this->job;
+    }
+
+    /**
+     * @return array
+     */
+    public function getKeys(): array
+    {
+        return array_keys(get_object_vars($this->job));
     }
 }
