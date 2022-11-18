@@ -10,7 +10,7 @@
 namespace PhpPkg\JenkinsClient\Jenkins;
 
 use PhpPkg\JenkinsClient\Jenkins;
-use stdClass;
+use Toolkit\Stdlib\Obj\DataObject;
 
 /**
  * class Build
@@ -51,9 +51,9 @@ class Build
     public const ABORTED = 'ABORTED';
 
     /**
-     * @var stdClass
+     * @var DataObject
      */
-    private stdClass $build;
+    private DataObject $build;
 
     /**
      * @var Jenkins
@@ -61,13 +61,13 @@ class Build
     private Jenkins $jenkins;
 
     /**
-     * @param stdClass $build
-     * @param Jenkins   $jenkins
+     * @param DataObject $build
+     * @param Jenkins $jenkins
      */
-    public function __construct(stdClass $build, Jenkins $jenkins)
+    public function __construct(DataObject $build, Jenkins $jenkins)
     {
         $this->build = $build;
-        $this->setJenkins($jenkins);
+        $this->jenkins  = $jenkins;
     }
 
     /**
@@ -75,14 +75,15 @@ class Build
      */
     public function getInputParameters(): array
     {
-        $parameters = [];
-
-        if (!property_exists($this->build->actions[0], 'parameters')) {
-            return $parameters;
+        $actions = $this->build->actions;
+        if (!isset($actions[0]['parameters'])) {
+            return [];
         }
 
-        foreach ($this->build->actions[0]->parameters as $parameter) {
-            $parameters[$parameter->name] = $parameter->value;
+        // DataObject::new($actions[0]['parameters']);
+        $parameters = [];
+        foreach ($actions[0]['parameters'] as $parameter) {
+            $parameters[$parameter['name']] = $parameter['value'];
         }
 
         return $parameters;

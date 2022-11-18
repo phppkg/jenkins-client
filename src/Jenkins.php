@@ -186,7 +186,7 @@ class Jenkins // extends AbstractObj
      */
     public function getCacheFile(): string
     {
-        $filename  = md5($this->baseUrl . $this->username) . '.json';
+        $filename = md5($this->baseUrl . $this->username) . '.json';
 
         return File::join($this->cacheDir, $filename);
     }
@@ -247,7 +247,7 @@ class Jenkins // extends AbstractObj
                 throw new RuntimeException(sprintf('Error on get information for executors[%s@%s]', $i, $computer));
             }
 
-            $infos = $cli->getJsonObject();
+            $infos = $cli->getDataObject();
 
             $executors[] = new Jenkins\Executor($infos, $computer, $this);
         }
@@ -256,6 +256,41 @@ class Jenkins // extends AbstractObj
     }
 
     /**
+     * trigger hook build like use gitlab
+     *
+     * @param string $jobName
+     * @param array $hookData
+     *
+     * @return bool
+     */
+    public function triggerHook(string $jobName, array $hookData = []): bool
+    {
+        $url = $this->buildUrl('/project/%s', $jobName);
+        $cli = $this->getHttpClient()->post($url, $hookData);
+
+        if (!$cli->isSuccess()) {
+            throw new RuntimeException(sprintf('Error trying to launch job "%s"(%s)', $jobName, $url));
+        }
+
+        return true;
+    }
+
+    /**
+     * trigger job build, can with parameters
+     *
+     * @param string $jobName
+     * @param array $parameters
+     *
+     * @return bool
+     */
+    public function triggerBuild(string $jobName, array $parameters = []): bool
+    {
+        return $this->launchJob($jobName, $parameters);
+    }
+
+    /**
+     * launch job build, can with parameters
+     *
      * @param string $jobName
      * @param array $parameters
      *
@@ -277,7 +312,8 @@ class Jenkins // extends AbstractObj
         $cli = $this->getHttpClient()->post($url, $parameters, $headers);
 
         if (!$cli->isSuccess()) {
-            throw new RuntimeException(sprintf('Error trying to launch job "%s"(%s)', $jobName, $url));
+            // $respStr = $cli->getResponseBody();
+            throw new RuntimeException(sprintf('Error trying to launch job "%s"', $jobName));
         }
 
         return true;
@@ -297,7 +333,7 @@ class Jenkins // extends AbstractObj
             throw new RuntimeException(sprintf('Error on get information for job %s', $jobName));
         }
 
-        $infos = $cli->getJsonObject();
+        $infos = $cli->getDataObject();
 
         return new Jenkins\Job($infos, $this);
     }
@@ -320,7 +356,7 @@ class Jenkins // extends AbstractObj
             throw new RuntimeException(sprintf('Error on get information for job %s', $jobName));
         }
 
-        $infos = $cli->getJsonObject();
+        $infos = $cli->getDataObject();
 
         return new Jenkins\Job($infos, $this);
     }
@@ -357,7 +393,7 @@ class Jenkins // extends AbstractObj
             throw new RuntimeException('Error on get information for queues');
         }
 
-        $infos = $cli->getJsonObject();
+        $infos = $cli->getDataObject();
 
         return new Jenkins\Queue($infos, $this);
     }
@@ -406,7 +442,7 @@ class Jenkins // extends AbstractObj
             throw new RuntimeException(sprintf('Error on get information for view %s', $viewName));
         }
 
-        $infos = $cli->getJsonObject();
+        $infos = $cli->getDataObject();
 
         return new Jenkins\View($infos, $this);
     }
@@ -434,9 +470,7 @@ class Jenkins // extends AbstractObj
             throw new RuntimeException(sprintf('Error on get information for build %s#%d', $job, $buildId));
         }
 
-        $infos = $cli->getJsonObject();
-
-        return new Jenkins\Build($infos, $this);
+        return new Jenkins\Build($cli->getDataObject(), $this);
     }
 
     /**
@@ -466,8 +500,7 @@ class Jenkins // extends AbstractObj
             throw new RuntimeException(sprintf('Error on get information for computer %s', $computerName));
         }
 
-        $infos = $cli->getJsonObject();
-        return new Jenkins\Computer($infos, $this);
+        return new Jenkins\Computer($cli->getDataObject(), $this);
     }
 
     /**
@@ -654,17 +687,17 @@ class Jenkins // extends AbstractObj
 
     /**
      * @param string $jobName
-     * @param string $buildNumber
+     * @param int $buildNumber
      *
      * @return string
      */
-    public function getConsoleTextBuild(string $jobName, string $buildNumber): string
+    public function getBuildConsoleText(string $jobName, int $buildNumber): string
     {
-        $url = $this->buildUrl('/job/%s/%s/consoleText', $jobName, $buildNumber);
+        $url = $this->buildUrl('/job/%s/%d/consoleText', $jobName, $buildNumber);
         $cli = $this->getHttpClient()->get($url);
 
         if (!$cli->isSuccess()) {
-            throw new RuntimeException('Error on get computers information');
+            throw new RuntimeException(sprintf('Error on get %s build#%d console text information', $jobName, $buildNumber));
         }
 
         return $cli->getResponseBody();
@@ -685,7 +718,7 @@ class Jenkins // extends AbstractObj
             throw new RuntimeException(sprintf('Error on get information for build %s#%d', $jobName, $buildId));
         }
 
-        $infos = $cli->getJsonObject();
+        $infos = $cli->getDataObject();
 
         return new Jenkins\TestReport($this, $infos, $jobName, $buildId);
     }
@@ -702,11 +735,11 @@ class Jenkins // extends AbstractObj
             throw new RuntimeException('Error on get computers information');
         }
 
-        $infos = $cli->getJsonObject();
+        $infos = $cli->getDataObject();
 
         $computers = [];
         foreach ($infos->computer as $computer) {
-            $computers[] = $this->getComputer($computer->displayName);
+            $computers[] = $this->getComputer($computer['displayName']);
         }
 
         return $computers;

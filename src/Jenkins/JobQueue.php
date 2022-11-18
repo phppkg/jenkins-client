@@ -10,7 +10,7 @@
 namespace PhpPkg\JenkinsClient\Jenkins;
 
 use PhpPkg\JenkinsClient\Jenkins;
-use stdClass;
+use Toolkit\Stdlib\Obj\DataObject;
 
 /**
  * class JobQueue
@@ -21,9 +21,9 @@ use stdClass;
 class JobQueue
 {
     /**
-     * @var stdClass
+     * @var DataObject
      */
-    private stdClass $jobQueue;
+    private DataObject $jobQueue;
 
     /**
      * @var Jenkins
@@ -31,13 +31,13 @@ class JobQueue
     protected Jenkins $jenkins;
 
     /**
-     * @param stdClass $jobQueue
+     * @param DataObject $jobQueue
      * @param Jenkins   $jenkins
      */
-    public function __construct(stdClass $jobQueue, Jenkins $jenkins)
+    public function __construct(DataObject $jobQueue, Jenkins $jenkins)
     {
         $this->jobQueue = $jobQueue;
-        $this->setJenkins($jenkins);
+        $this->jenkins  = $jenkins;
     }
 
     /**
@@ -45,17 +45,25 @@ class JobQueue
      */
     public function getInputParameters(): array
     {
-        $parameters = [];
-
-        if (!property_exists($this->jobQueue->actions[0], 'parameters')) {
-            return $parameters;
+        $actions = $this->jobQueue->actions;
+        if (!isset($actions[0]['parameters'])) {
+            return [];
         }
 
-        foreach ($this->jobQueue->actions[0]->parameters as $parameter) {
-            $parameters[$parameter->name] = $parameter->value;
+        $parameters = [];
+        foreach ($actions[0]['parameters'] as $parameter) {
+            $parameters[$parameter['name']] = $parameter['value'];
         }
 
         return $parameters;
+    }
+
+    /**
+     * @return DataObject
+     */
+    public function getData(): DataObject
+    {
+        return $this->jobQueue;
     }
 
     /**
@@ -63,7 +71,7 @@ class JobQueue
      */
     public function getJobName(): string
     {
-        return $this->jobQueue->task->name;
+        return $this->jobQueue->task['name'];
     }
 
     /**

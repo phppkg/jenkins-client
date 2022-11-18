@@ -10,7 +10,7 @@
 namespace PhpPkg\JenkinsClient\Jenkins;
 
 use PhpPkg\JenkinsClient\Jenkins;
-use stdClass;
+use Toolkit\Stdlib\Obj\DataObject;
 
 /**
  * class Executor
@@ -21,9 +21,9 @@ use stdClass;
 class Executor
 {
     /**
-     * @var stdClass
+     * @var DataObject
      */
-    private stdClass $executor;
+    private DataObject $executor;
 
     /**
      * @var Jenkins
@@ -36,15 +36,23 @@ class Executor
     protected string $computer;
 
     /**
-     * @param stdClass $executor
+     * @param DataObject $executor
      * @param string $computer
      * @param Jenkins   $jenkins
      */
-    public function __construct(stdClass $executor, string $computer, Jenkins $jenkins)
+    public function __construct(DataObject $executor, string $computer, Jenkins $jenkins)
     {
         $this->executor = $executor;
         $this->computer = $computer;
-        $this->setJenkins($jenkins);
+        $this->jenkins  = $jenkins;
+    }
+
+    /**
+     * @return DataObject
+     */
+    public function getData(): DataObject
+    {
+        return $this->executor;
     }
 
     /**
@@ -72,26 +80,26 @@ class Executor
     }
 
     /**
-     * @return int|null
+     * @return int
      */
-    public function getBuildNumber(): ?int
+    public function getBuildNumber(): int
     {
-        $number = null;
+        $number = 0;
         if (isset($this->executor->currentExecutable)) {
-            $number = $this->executor->currentExecutable->number;
+            $number = $this->executor->currentExecutable['number'];
         }
 
         return $number;
     }
 
     /**
-     * @return null|string
+     * @return string
      */
-    public function getBuildUrl(): ?string
+    public function getBuildUrl(): string
     {
-        $url = null;
+        $url = '';
         if (isset($this->executor->currentExecutable)) {
-            $url = $this->executor->currentExecutable->url;
+            $url = $this->executor->currentExecutable['url'];
         }
 
         return $url;
@@ -116,9 +124,9 @@ class Executor
     /**
      * @param Jenkins $jenkins
      *
-     * @return Executor|Job
+     * @return self
      */
-    public function setJenkins(Jenkins $jenkins): Job|static
+    public function setJenkins(Jenkins $jenkins): static
     {
         $this->jenkins = $jenkins;
 

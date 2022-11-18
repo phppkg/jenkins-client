@@ -10,7 +10,7 @@
 namespace PhpPkg\JenkinsClient\Jenkins;
 
 use PhpPkg\JenkinsClient\Jenkins;
-use stdClass;
+use Toolkit\Stdlib\Obj\DataObject;
 
 /**
  * class Computer
@@ -21,9 +21,9 @@ use stdClass;
 class Computer
 {
     /**
-     * @var stdClass
+     * @var DataObject
      */
-    private stdClass $computer;
+    private DataObject $computer;
 
     /**
      * @var Jenkins
@@ -31,13 +31,21 @@ class Computer
     private Jenkins $jenkins;
 
     /**
-     * @param stdClass $computer
+     * @param DataObject $computer
      * @param Jenkins   $jenkins
      */
-    public function __construct(stdClass $computer, Jenkins $jenkins)
+    public function __construct(DataObject $computer, Jenkins $jenkins)
     {
         $this->computer = $computer;
-        $this->setJenkins($jenkins);
+        $this->jenkins  = $jenkins;
+    }
+
+    /**
+     * @return DataObject
+     */
+    public function getData(): DataObject
+    {
+        return $this->computer;
     }
 
     /**
@@ -59,14 +67,14 @@ class Computer
 
     /**
      *
-     * returns null when computer is launching
-     * returns \stdClass when computer has been put offline
+     * returns [] when computer is launching
+     * returns non-empty when computer has been put offline
      *
-     * @return null|stdClass
+     * @return array
      */
-    public function getOfflineCause(): ?stdClass
+    public function getOfflineCause(): array
     {
-        return $this->computer->offlineCause;
+        return $this->computer->getArray('offlineCause');
     }
 
     /**
@@ -86,8 +94,7 @@ class Computer
      */
     public function delete(): Computer
     {
-        $this->getJenkins()
-             ->deleteComputer($this->getName());
+        $this->jenkins->deleteComputer($this->getName());
 
         return $this;
     }
@@ -117,6 +124,6 @@ class Computer
      */
     public function getConfiguration(): string
     {
-        return $this->getJenkins()->getComputerConfig($this->getName());
+        return $this->jenkins->getComputerConfig($this->getName());
     }
 }

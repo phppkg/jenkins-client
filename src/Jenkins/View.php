@@ -10,7 +10,7 @@
 namespace PhpPkg\JenkinsClient\Jenkins;
 
 use PhpPkg\JenkinsClient\Jenkins;
-use stdClass;
+use Toolkit\Stdlib\Obj\DataObject;
 
 /**
  * class View
@@ -21,9 +21,9 @@ use stdClass;
 class View
 {
     /**
-     * @var stdClass
+     * @var DataObject
      */
-    private stdClass $view;
+    private DataObject $view;
 
     /**
      * @var Jenkins
@@ -31,13 +31,21 @@ class View
     protected Jenkins $jenkins;
 
     /**
-     * @param stdClass $view
+     * @param DataObject $view
      * @param Jenkins   $jenkins
      */
-    public function __construct(stdClass $view, Jenkins $jenkins)
+    public function __construct(DataObject $view, Jenkins $jenkins)
     {
         $this->view    = $view;
         $this->jenkins = $jenkins;
+    }
+
+    /**
+     * @return DataObject
+     */
+    public function getData(): DataObject
+    {
+        return $this->view;
     }
 
     /**
@@ -53,7 +61,7 @@ class View
      */
     public function getDescription(): string
     {
-        return $this->view->description ?? '';
+        return $this->view->getString('description');
     }
 
     /**
@@ -61,7 +69,7 @@ class View
      */
     public function getURL(): string
     {
-        return $this->view->url ?? '';
+        return $this->view->getString('url');
     }
 
     /**
@@ -72,7 +80,7 @@ class View
         $jobs = [];
 
         foreach ($this->view->jobs as $job) {
-            $jobs[] = $this->jenkins->getJob($job->name);
+            $jobs[] = $this->jenkins->getJob($job['name']);
         }
 
         return $jobs;
@@ -87,8 +95,8 @@ class View
     {
         $color = 'blue';
         foreach ($this->view->jobs as $job) {
-            if ($this->getColorPriority($job->color) > $this->getColorPriority($color)) {
-                $color = $job->color;
+            if ($this->getColorPriority($job['color']) > $this->getColorPriority($color)) {
+                $color = $job['color'];
             }
         }
 

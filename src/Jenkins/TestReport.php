@@ -11,18 +11,20 @@ namespace PhpPkg\JenkinsClient\Jenkins;
 
 use PhpPkg\JenkinsClient\Jenkins;
 use stdClass;
+use Toolkit\Stdlib\Json;
+use Toolkit\Stdlib\Obj\DataObject;
 
+/**
+ * class TestReport
+ *
+ * @author inhere
+ * @date 2022/11/18
+ */
 class TestReport
 {
-    /**
-     * @var Jenkins
-     */
     protected Jenkins $jenkins;
 
-    /**
-     * @var stdClass
-     */
-    protected stdClass $testReport;
+    protected DataObject $testReport;
 
     /**
      * @var string
@@ -38,11 +40,11 @@ class TestReport
      * __construct
      *
      * @param Jenkins   $jenkins
-     * @param stdClass $testReport
+     * @param DataObject $testReport
      * @param string $jobName
      * @param int $buildNumber
      */
-    public function __construct(Jenkins $jenkins, stdClass $testReport, string $jobName, int $buildNumber)
+    public function __construct(Jenkins $jenkins, DataObject $testReport, string $jobName, int $buildNumber)
     {
         $this->jenkins     = $jenkins;
         $this->testReport  = $testReport;
@@ -55,7 +57,15 @@ class TestReport
      */
     public function getOriginalTestReport(): string
     {
-        return json_encode($this->testReport, JSON_THROW_ON_ERROR);
+        return Json::enc($this->testReport);
+    }
+
+    /**
+     * @return DataObject
+     */
+    public function getData(): DataObject
+    {
+        return $this->testReport;
     }
 
     /**
@@ -116,6 +126,8 @@ class TestReport
 
     /**
      *
+     * @param $id
+     *
      * @return stdClass
      */
     public function getSuite($id): stdClass
@@ -124,6 +136,8 @@ class TestReport
     }
 
     /**
+     *
+     * @param $id
      *
      * @return string
      */

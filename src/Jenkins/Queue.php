@@ -10,14 +10,14 @@
 namespace PhpPkg\JenkinsClient\Jenkins;
 
 use PhpPkg\JenkinsClient\Jenkins;
-use stdClass;
+use Toolkit\Stdlib\Obj\DataObject;
 
 class Queue
 {
     /**
-     * @var stdClass
+     * @var DataObject
      */
-    private stdClass $queue;
+    private DataObject $queue;
 
     /**
      * @var Jenkins
@@ -25,13 +25,13 @@ class Queue
     protected Jenkins $jenkins;
 
     /**
-     * @param stdClass $queue
-     * @param Jenkins   $jenkins
+     * @param DataObject $queue
+     * @param Jenkins $jenkins
      */
-    public function __construct(stdClass $queue, Jenkins $jenkins)
+    public function __construct(DataObject $queue, Jenkins $jenkins)
     {
         $this->queue = $queue;
-        $this->setJenkins($jenkins);
+        $this->jenkins  = $jenkins;
     }
 
     /**
@@ -42,10 +42,18 @@ class Queue
         $jobs = [];
 
         foreach ($this->queue->items as $item) {
-            $jobs[] = new JobQueue($item, $this->getJenkins());
+            $jobs[] = new JobQueue(DataObject::new($item), $this->jenkins);
         }
 
         return $jobs;
+    }
+
+    /**
+     * @return DataObject
+     */
+    public function getData(): DataObject
+    {
+        return $this->queue;
     }
 
     /**
