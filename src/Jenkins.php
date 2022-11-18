@@ -344,11 +344,11 @@ class Jenkins // extends AbstractObj
      * @param string $jobName
      * @param string $tree
      *
-     * @return Job
+     * @return DataObject
      */
-    public function getJobParams(string $jobName, string $tree = ''): Job
+    public function getJobParams(string $jobName, string $tree = ''): DataObject
     {
-        $tree = $tree ?: 'property[parameterDefinitions[description,name,type,choices]]';
+        $tree = $tree ?: 'property[parameterDefinitions[description,name,type,choices,defaultParameterValue]]';
         $url  = $this->buildUrl('/job/%s/api/json?tree=%s', $jobName, $tree);
         $cli  = $this->getHttpClient()->get($url);
 
@@ -356,9 +356,14 @@ class Jenkins // extends AbstractObj
             throw new RuntimeException(sprintf('Error on get information for job %s', $jobName));
         }
 
-        $infos = $cli->getDataObject();
+        $data = $cli->getArrayData();
 
-        return new Jenkins\Job($infos, $this);
+        $params = [];
+        if (isset($data['property'])) {
+            $params = Job::fmtBuildParams($data['property']);
+        }
+
+        return DataObject::new($params);
     }
 
     /**

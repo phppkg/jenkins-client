@@ -37,8 +37,8 @@ class Job
      */
     public function __construct(DataObject $job, Jenkins $jenkins)
     {
-        $this->job = $job;
-        $this->jenkins  = $jenkins;
+        $this->job     = $job;
+        $this->jenkins = $jenkins;
     }
 
     /**
@@ -77,16 +77,26 @@ class Job
      */
     public function getParametersDefinitions(): array
     {
+        return self::fmtBuildParams($this->job->property);
+    }
+
+    /**
+     * @param array $jobProperty
+     *
+     * @return array
+     */
+    public static function fmtBuildParams(array $jobProperty): array
+    {
         $parameters = [];
 
-        foreach ($this->job->property as $action) {
+        foreach ($jobProperty as $action) {
             if (!isset($action['parameterDefinitions'])) {
                 continue;
             }
 
             foreach ($action['parameterDefinitions'] as $paramDefinition) {
                 $description = $paramDefinition['description'] ?? null;
-                $paramType = $paramDefinition['type'] ?? null;
+                $paramType   = $paramDefinition['type'] ?? null;
 
                 $default = $paramDefinition['defaultParameterValue']['value'] ?? null;
                 $choices = $paramDefinition['choices'] ?? null;
