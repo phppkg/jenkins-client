@@ -3,7 +3,8 @@
 [![License](https://img.shields.io/github/license/phppkg/jenkins-client?style=flat-square)](LICENSE)
 [![Php Version](https://img.shields.io/packagist/php-v/phppkg/jenkins-client?maxAge=2592000)](https://packagist.org/packages/phppkg/jenkins-client)
 [![GitHub tag (latest SemVer)](https://img.shields.io/github/tag/phppkg/jenkins-client)](https://github.com/phppkg/jenkins-client)
-[![Actions Status](https://github.com/phppkg/jenkins-client/workflows/Unit-Tests/badge.svg)](https://github.com/phppkg/jenkins-client/actions)
+[![Unit Tests](https://github.com/phppkg/jenkins-client/actions/workflows/php.yml/badge.svg)](https://github.com/phppkg/jenkins-client/actions/workflows/php.yml)
+[![Deploy Pages](https://github.com/phppkg/jenkins-client/actions/workflows/static.yml/badge.svg)](https://github.com/phppkg/jenkins-client/actions/workflows/static.yml)
 
 > **[EN README](README.md)**
 
@@ -23,13 +24,13 @@ composer require phppkg/jenkins-client
 
 ## 开始使用
 
-Before anything, you need to instantiate the client :
+在进行任何操作之前，您需要实例化客户端:
 
 ```php
 $jenkins = new \PhpPkg\JenkinsClient\Jenkins('http://host.org:8080');
 ```
 
-If your Jenkins needs authentication, you need to pass a URL like this : `'http://user:token@host.org:8080'`.
+如果你的 Jenkins 需要身份验证，你需要传递这样的 URL: `http://user:token@host.org:8080`.
 
 Simple example - sending "String Parameters":
 
@@ -49,7 +50,7 @@ curl JENKINS_URL/job/JOB_NAME/buildWithParameters \
 
 Here are some examples of how to use it:
 
-### Get the color of the job
+### 获取Job的颜色
 
 ```php
     $job = $jenkins->getJob("dev2-pull");
@@ -57,7 +58,7 @@ Here are some examples of how to use it:
     //string(4) "blue"
 ```
 
-### Launch a Job
+### 启动 Job
 
 ```php
     $job = $jenkins->launchJob("clone-deploy");
@@ -65,7 +66,7 @@ Here are some examples of how to use it:
     // bool(true) if successful or throws a RuntimeException
 ```
 
-### List the jobs of a given view
+### 列出给定视图的Jobs
 
 ```php
     $view = $jenkins->getView('madb_deploy');
@@ -78,7 +79,7 @@ Here are some examples of how to use it:
     //string(11) "fedora-pull"
 ```
 
-### List builds and their status
+### 列出构建及其状态
 
 ```php
     $job = $jenkins->getJob('dev2-pull');
@@ -92,7 +93,7 @@ Here are some examples of how to use it:
     //string(7) "FAILURE"
 ```
 
-### Check if Jenkins is available
+### 检查 Jenkins 是否可用
 
 ```php
     var_dump($jenkins->isAvailable());

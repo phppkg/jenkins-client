@@ -3,7 +3,8 @@
 [![License](https://img.shields.io/github/license/phppkg/jenkins-client?style=flat-square)](LICENSE)
 [![Php Version](https://img.shields.io/packagist/php-v/phppkg/jenkins-client?maxAge=2592000)](https://packagist.org/packages/phppkg/jenkins-client)
 [![GitHub tag (latest SemVer)](https://img.shields.io/github/tag/phppkg/jenkins-client)](https://github.com/phppkg/jenkins-client)
-[![Actions Status](https://github.com/phppkg/jenkins-client/workflows/Unit-Tests/badge.svg)](https://github.com/phppkg/jenkins-client/actions)
+[![Unit Tests](https://github.com/phppkg/jenkins-client/actions/workflows/php.yml/badge.svg)](https://github.com/phppkg/jenkins-client/actions/workflows/php.yml)
+[![Deploy Pages](https://github.com/phppkg/jenkins-client/actions/workflows/static.yml/badge.svg)](https://github.com/phppkg/jenkins-client/actions/workflows/static.yml)
 
 > **[中文说明](README.zh-CN.md)**
 
