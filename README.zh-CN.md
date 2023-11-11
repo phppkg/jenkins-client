@@ -5,13 +5,13 @@
 [![GitHub tag (latest SemVer)](https://img.shields.io/github/tag/phppkg/jenkins-client)](https://github.com/phppkg/jenkins-client)
 [![Actions Status](https://github.com/phppkg/jenkins-client/workflows/Unit-Tests/badge.svg)](https://github.com/phppkg/jenkins-client/actions)
 
-> **[中文说明](README.zh-CN.md)**
+> **[EN README](README.md)**
 
-`jenkins-client` - Designed to interact with Jenkins CI using its API.
+`jenkins-client` - 简单方便的使用 API 与 Jenkins CI 进行交互。
 
 > `phppkg/jenkins-client` is inspired from the https://github.com/jenkins-khan/jenkins-php-api
 
-## Install
+## 安装
 
 - Required PHP 8.0+
 
@@ -21,7 +21,7 @@
 composer require phppkg/jenkins-client
 ```
 
-## Usage
+## 开始使用
 
 Before anything, you need to instantiate the client :
 
